@@ -14,8 +14,6 @@
 // InfluxDB v1 database name 
 //#define INFLUXDB_DB_NAME "database"
 
-#define DEVICE "ESP32"
-
 #define SET_PIN 5
 
 #define RXD2 16
@@ -29,7 +27,7 @@
 #define RF_CHANNEL 0x64
 
 //Inverter Parameters
-#define BOX_ID 0x13, 0x84
+#define BOX_ID 0x00, 0x00 //Box ID
 #define INVERTER_ID 0x38, 0x00, 0x41, 0x46
 
 #define I_BOX_ID 2
