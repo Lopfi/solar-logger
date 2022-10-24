@@ -11,11 +11,12 @@ InfluxDBClient client(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKE
 // Data point
 Point sensor("inverter_data");  
 
-const byte numChars = 32;
+const byte numChars = 27;
 byte rxData[numChars];   // an array to store the received data
 boolean newData = false;
 int lastTx;
 int lastRx;
+int attemps = 0;
 
 void data_grab() {
   byte message[] = {0x43, 0xC0, BOX_ID, 0x00, 0x00, INVERTER_ID, 0x00, 0x00, 0x00, 0x00};
@@ -74,7 +75,7 @@ void recvWithStartEndMarkers() {
     static boolean recvInProgress = false;
     static byte ndx = 0;
     int startMarker = 0x43;
-    int endMarker = 0x9F; // 0x2f
+    //int endMarker = 0x9F; // 0x2f
     int rc;
  
     while (Serial2.available() > 0 && !newData) {
@@ -86,19 +87,36 @@ void recvWithStartEndMarkers() {
         rxData[ndx] = rc;
         ndx++;
         if (ndx >= numChars) {
-            ndx = numChars - 1;
-        }
-        if (rc == endMarker) {
           recvInProgress = false;
           ndx = 0;
           newData = true;
         }
+        //if (rc == endMarker) {
+        //  recvInProgress = false;
+        //  ndx = 0;
+        //  newData = true;
+        //}
       }
   }
 }
 
 float getValue(int index) {
   return int((rxData[index] << 8) | rxData[index + 1]) / 100.0;
+}
+
+void writeToDB() {
+    // Print what are we exactly writing
+  Serial.print("Writing: ");
+  Serial.println(client.pointToLineProtocol(sensor));
+  // If no Wifi signal, try to reconnect it
+  if (wifiMulti.run() != WL_CONNECTED) {
+    Serial.println("Wifi connection lost");
+  }
+  // Write point
+  if (!client.writePoint(sensor)) {
+    Serial.print("InfluxDB write failed: ");
+    Serial.println(client.getLastErrorMessage());
+  }
 }
 
 void showNewData() {
@@ -113,6 +131,13 @@ void showNewData() {
 
   String box_id = String(int((rxData[I_BOX_ID] << 8) | rxData[I_BOX_ID + 1]), HEX);
   String inverter_id = String(int((rxData[I_INVERTER_ID] << 24) | (rxData[I_INVERTER_ID + 1] << 16) | (rxData[I_INVERTER_ID + 2] << 8) | rxData[I_INVERTER_ID + 3]), HEX);
+
+  if (box_id != Box_id || inverter_id != Inverter_id) {
+    Serial.println(" - Wrong box or inverter ID");
+    newData = false;
+    return;
+  }
+
   float vdc = getValue(I_VDC);
   float idc = getValue(I_DC);
   float vac = getValue(I_VAC);
@@ -136,6 +161,7 @@ void showNewData() {
 
   // Store measured value into point
   sensor.clearFields();
+  sensor.clearTags();
   
   // Add constant tags - only once
   sensor.addTag("BOX_ID", box_id);
@@ -145,26 +171,34 @@ void showNewData() {
   sensor.addField("IDC", idc);
   sensor.addField("VAC", vac);
   sensor.addField("IAC", iac);
-  // Print what are we exactly writing
-  Serial.print("Writing: ");
-  Serial.println(client.pointToLineProtocol(sensor));
-  // If no Wifi signal, try to reconnect it
-  if (wifiMulti.run() != WL_CONNECTED) {
-    Serial.println("Wifi connection lost");
-  }
-  // Write point
-  if (!client.writePoint(sensor)) {
-    Serial.print("InfluxDB write failed: ");
-    Serial.println(client.getLastErrorMessage());
-  }
 
+  // Write point to InfluxDB
+  writeToDB();
+
+  attemps = 0;
   newData = false;
 }
 
 void loop() {
   if (lastTx + 5000 < millis() && lastRx + 60000 < millis()) { //60000
     data_grab();
+    attemps++;
     lastTx = millis();
+    if (attemps > 3) {
+      Serial.println("No response from inverter");
+      sensor.addTag("BOX_ID", Box_id);
+      sensor.addTag("INVERTER_ID", Inverter_id);
+
+      sensor.addField("VDC", 0);
+      sensor.addField("IDC", 0);
+      sensor.addField("VAC", 0);
+      sensor.addField("IAC", 0);
+
+      // Write point to InfluxDB
+      writeToDB();
+      attemps = 0;
+      lastRx = millis();
+    }
   }
   recvWithStartEndMarkers();
   showNewData();
