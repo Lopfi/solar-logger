@@ -30,6 +30,9 @@
 #define BOX_ID 0x00, 0x00 //Box ID
 #define INVERTER_ID 0x38, 0x00, 0x41, 0x46
 
+#define Inverter_id "38004146";
+#define Box_id "0000";
+
 #define I_BOX_ID 2
 #define I_INVERTER_ID 6
 #define I_VDC 15

@@ -132,7 +132,7 @@ void showNewData() {
   String box_id = String(int((rxData[I_BOX_ID] << 8) | rxData[I_BOX_ID + 1]), HEX);
   String inverter_id = String(int((rxData[I_INVERTER_ID] << 24) | (rxData[I_INVERTER_ID + 1] << 16) | (rxData[I_INVERTER_ID + 2] << 8) | rxData[I_INVERTER_ID + 3]), HEX);
 
-  if (box_id != Box_id || inverter_id != Inverter_id) {
+  if (box_id != BOX_ID_S || inverter_id != INVERTER_ID_S) {
     Serial.println(" - Wrong box or inverter ID");
     newData = false;
     return;
@@ -186,8 +186,8 @@ void loop() {
     lastTx = millis();
     if (attemps > 3) {
       Serial.println("No response from inverter");
-      sensor.addTag("BOX_ID", Box_id);
-      sensor.addTag("INVERTER_ID", Inverter_id);
+      sensor.addTag("BOX_ID", BOX_ID_S);
+      sensor.addTag("INVERTER_ID", INVERTER_ID_S);
 
       sensor.addField("VDC", 0);
       sensor.addField("IDC", 0);
