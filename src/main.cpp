@@ -186,6 +186,11 @@ void loop() {
     lastTx = millis();
     if (attemps > 3) {
       Serial.println("No response from inverter");
+
+        // Store measured value into point
+      sensor.clearFields();
+      sensor.clearTags();
+      
       sensor.addTag("BOX_ID", BOX_ID_S);
       sensor.addTag("INVERTER_ID", INVERTER_ID_S);
 
