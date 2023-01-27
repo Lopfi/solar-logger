@@ -187,7 +187,7 @@ void loop() {
     if (attemps > 3) {
       Serial.println("No response from inverter");
 
-        // Store measured value into point
+      // Store measured value into point
       sensor.clearFields();
       sensor.clearTags();
       
