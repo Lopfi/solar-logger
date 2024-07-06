@@ -1,18 +1,11 @@
 #include <Arduino.h>
 #include <WiFiMulti.h>
 #include <InfluxDbClient.h>
-#include <SPI.h>
-#include <SD.h>
-#include <SoftwareSerial.h>
 #include <FastLED.h>
 
 #include "config.h"
 
-EspSoftwareSerial::UART Serial2;
-
 WiFiMulti wifiMulti;
-
-File myFile;
 
 CRGB leds[NUM_LEDS];
 
@@ -29,6 +22,7 @@ int lastRx;
 int attemps = 0;
 
 void data_grab() {
+  Serial.println("Sending data grab request");
   byte message[] = {0x43, 0xC0, BOX_ID, 0x00, 0x00, INVERTER_ID, 0x00, 0x00, 0x00, 0x00};
   int length = sizeof(message);
 
@@ -41,7 +35,7 @@ void data_grab() {
   memcpy(&final[length], sum, sizeof(sum));
 
   for (byte i = 0; i <= length + 1; i++) {
-    Serial2.write(final[i]);
+    Serial1.write(final[i]);
     delayMicroseconds(2639); // 2639
   }
 }
@@ -49,13 +43,14 @@ void data_grab() {
 void setup() {
 
   Serial.begin(9600);
-  Serial2.begin(9600, EspSoftwareSerial::SWSERIAL_8N1, RXD2, TXD2, false);
+  Serial1.begin(9600, SERIAL_8N1, RXD2, TXD2);
 
   delay(5000);
 
   Serial.println("Starting...");
   
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);  // GRB ordering is assumed
+  FastLED.setBrightness(5);
   leds[0] = CRGB::Red;
   FastLED.show();
 
@@ -102,8 +97,8 @@ void recvWithStartEndMarkers() {
     //int endMarker = 0x9F; // 0x2f
     int rc;
  
-    while (Serial2.available() > 0 && !newData) {
-      rc = Serial2.read();
+    while (Serial1.available() > 0 && !newData) {
+      rc = Serial1.read();
 
       if (rc == startMarker)
         recvInProgress = true;
@@ -206,7 +201,7 @@ void showNewData() {
 }
 
 void loop() {
-  if (lastTx + 5000 < millis() && lastRx + 60000 < millis()) { //60000
+  if (lastTx + 5000 < millis() && lastRx + 60000 < millis()) {
     data_grab();
     attemps++;
     lastTx = millis();

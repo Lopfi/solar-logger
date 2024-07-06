@@ -1,23 +1,29 @@
+//WiFi
+//---------------------------------------------------------
 // WiFi AP SSID
 #define WIFI_SSID "ssid"
 // WiFi password
-#define WIFI_PASSWORD "password"
-// InfluxDB  server url. Don't use localhost, always server name or ip address.
-// E.g. http://192.168.1.48:8086 (In InfluxDB 2 UI -> Load Data -> Client Libraries), 
+#define WIFI_PASSWORD "password" 
+
+// InfluxDB
+//---------------------------------------------------------
+// InfluxDB  server url.
+// E.g. http://192.168.1.48:8086, 
 #define INFLUXDB_URL "influxdb-url"
-// InfluxDB 2 server or cloud API authentication token (Use: InfluxDB UI -> Load Data -> Tokens -> <select token>)
+// InfluxDB 2 server or cloud API authentication token
 #define INFLUXDB_TOKEN "toked-id"
-// InfluxDB 2 organization id (Use: InfluxDB UI -> Settings -> Profile -> <name under tile> )
+// InfluxDB 2 organization id
 #define INFLUXDB_ORG "org"
-// InfluxDB 2 bucket name (Use: InfluxDB UI -> Load Data -> Buckets)
+// InfluxDB 2 bucket name
 #define INFLUXDB_BUCKET "bucket"
-// InfluxDB v1 database name 
-//#define INFLUXDB_DB_NAME "database"
 
-#define SET_PIN 5
-
-#define RXD2 16
-#define TXD2 17
+//LC21S
+//---------------------------------------------------------
+// Enable pin
+#define SET_PIN 1
+// Pins for UART communication with LC21S
+#define RXD2 44
+#define TXD2 43
 
 //LC12S Parameters
 #define BAUD 0x04
