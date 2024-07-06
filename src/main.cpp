@@ -1,10 +1,20 @@
 #include <Arduino.h>
 #include <WiFiMulti.h>
 #include <InfluxDbClient.h>
+#include <SPI.h>
+#include <SD.h>
+#include <SoftwareSerial.h>
+#include <FastLED.h>
 
 #include "config.h"
 
+EspSoftwareSerial::UART Serial2;
+
 WiFiMulti wifiMulti;
+
+File myFile;
+
+CRGB leds[NUM_LEDS];
 
 InfluxDBClient client(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN);
 
@@ -39,9 +49,15 @@ void data_grab() {
 void setup() {
 
   Serial.begin(9600);
-  Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2, false);
+  Serial2.begin(9600, EspSoftwareSerial::SWSERIAL_8N1, RXD2, TXD2, false);
+
+  delay(5000);
 
   Serial.println("Starting...");
+  
+  FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);  // GRB ordering is assumed
+  leds[0] = CRGB::Red;
+  FastLED.show();
 
   pinMode(SET_PIN, OUTPUT);
   digitalWrite(SET_PIN, HIGH);
@@ -55,14 +71,22 @@ void setup() {
     delay(500);
   }
   Serial.println();
+  leds[0] = CRGB::Yellow;
+  FastLED.show();
+
+  delay(1000);
 
   // Check server connection
   if (client.validateConnection()) {
     Serial.print("Connected to InfluxDB: ");
     Serial.println(client.getServerUrl());
+    leds[0] = CRGB::Blue;
+    FastLED.show();
   } else {
     Serial.print("InfluxDB connection failed: ");
     Serial.println(client.getLastErrorMessage());
+    leds[0] = CRGB::Red;
+    FastLED.show();
   }
 
   delay(1000);
@@ -123,6 +147,8 @@ void showNewData() {
   if (!newData) return;
   
   Serial.print("Got response: ");
+  leds[0] = CRGB::Green;
+  FastLED.show();
   for (int i = 0; i < sizeof(rxData); i++)
   {
     Serial.print(rxData[i], HEX);
@@ -186,6 +212,8 @@ void loop() {
     lastTx = millis();
     if (attemps > 3) {
       Serial.println("No response from inverter");
+      leds[0] = CRGB::Yellow;
+      FastLED.show();
 
       // Store measured value into point
       sensor.clearFields();
