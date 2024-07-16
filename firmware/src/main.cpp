@@ -42,17 +42,17 @@ void data_grab() {
 
 void setup() {
 
-  Serial.begin(9600);
-  Serial1.begin(9600, SERIAL_8N1, RXD2, TXD2);
-
-  delay(5000);
-
-  Serial.println("Starting...");
-  
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);  // GRB ordering is assumed
   FastLED.setBrightness(5);
   leds[0] = CRGB::Red;
   FastLED.show();
+
+  Serial.begin(9600);
+  Serial1.begin(9600, SERIAL_8N1, RXD2, TXD2);
+
+  delay(500);
+
+  Serial.println("Starting...");
 
   pinMode(SET_PIN, OUTPUT);
   digitalWrite(SET_PIN, HIGH);
@@ -217,10 +217,10 @@ void loop() {
       sensor.addTag("BOX_ID", BOX_ID_S);
       sensor.addTag("INVERTER_ID", INVERTER_ID_S);
 
-      sensor.addField("VDC", 0);
-      sensor.addField("IDC", 0);
-      sensor.addField("VAC", 0);
-      sensor.addField("IAC", 0);
+      sensor.addField("VDC", 0.0);
+      sensor.addField("IDC", 0.0);
+      sensor.addField("VAC", 0.0);
+      sensor.addField("IAC", 0.0);
 
       // Write point to InfluxDB
       writeToDB();
