@@ -17,34 +17,16 @@
 // InfluxDB 2 bucket name
 #define INFLUXDB_BUCKET "bucket"
 
-//LC21S
+// Inverter
 //---------------------------------------------------------
-// Enable pin
-#define SET_PIN 1
-// Pins for UART communication with LC21S
-#define RXD2 44
-#define TXD2 43
-
-//LC12S Parameters
-#define BAUD 0x04
-#define MODULE_ID 0x2233
-#define NETWORK_ID 0x1122
-#define RF_TRANSMIT_POWER 0x00
-#define RF_CHANNEL 0x64
-
-//Inverter Parameters
-#define BOX_ID 0x00, 0x00 //Box ID
-#define INVERTER_ID 0x00, 0x00, 0x00, 0x00
-
-#define INVERTER_ID "00000000";
-#define BOX_ID_S "0000";
-
-#define I_BOX_ID 2
-#define I_INVERTER_ID 6
-#define I_VDC 15
-#define I_DC 17
-#define I_VAC 19
-#define I_AC 21
+// Programming enable pin of RF module
+constexpr const uint8_t PROG_PIN = 1;
+// RX pin of ESP32 connect to TX of RF module
+constexpr const uint8_t RX_PIN = 44;
+// TX pin of ESP32 connect to RX of RF module
+constexpr const uint8_t TX_PIN = 43;
+// Identifier of your inverter (see label on inverter)
+constexpr const uint32_t inverterID = 0x38004146;
 
 // LED
 //---------------------------------------------------------
@@ -52,3 +34,4 @@
 #define NUM_LEDS 1
 // Data pin where the LED strip is connected to
 #define DATA_PIN 2
+

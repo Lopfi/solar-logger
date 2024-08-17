@@ -2,43 +2,28 @@
 #include <WiFiMulti.h>
 #include <InfluxDbClient.h>
 #include <FastLED.h>
+#include <NETSGPClient.h>
 
 #include "config.h"
+
+#define debugSerial Serial
+#define clientSerial Serial1
+
+NETSGPClient inverter(clientSerial, PROG_PIN); /// NETSGPClient instance
 
 WiFiMulti wifiMulti;
 
 CRGB leds[NUM_LEDS];
 
-InfluxDBClient client(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN);
+InfluxDBClient influx(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN);
 
 // Data point
-Point sensor("inverter_data");  
+Point sensor("inverter_data");
 
-const byte numChars = 27;
-byte rxData[numChars];   // an array to store the received data
 boolean newData = false;
 int lastTx;
 int lastRx;
 int attemps = 0;
-
-void data_grab() {
-  Serial.println("Sending data grab request");
-  byte message[] = {0x43, 0xC0, BOX_ID, 0x00, 0x00, INVERTER_ID, 0x00, 0x00, 0x00, 0x00};
-  int length = sizeof(message);
-
-  byte sum[] = { 0x00 };
-  for (byte i = 0; i < length; i++) {
-    sum[0] += message[i];
-  }
-  byte final[length + 1];
-  memcpy(final, message, length);
-  memcpy(&final[length], sum, sizeof(sum));
-
-  for (byte i = 0; i <= length + 1; i++) {
-    Serial1.write(final[i]);
-    delayMicroseconds(2639); // 2639
-  }
-}
 
 void setup() {
 
@@ -47,15 +32,12 @@ void setup() {
   leds[0] = CRGB::Red;
   FastLED.show();
 
-  Serial.begin(9600);
-  Serial1.begin(9600, SERIAL_8N1, RXD2, TXD2);
+  debugSerial.begin(115200);
+  clientSerial.begin(9600, SERIAL_8N1, RX_PIN, TX_PIN);
 
   delay(500);
 
   Serial.println("Starting...");
-
-  pinMode(SET_PIN, OUTPUT);
-  digitalWrite(SET_PIN, HIGH);
 
   // Connect WiFi
   Serial.println("Connecting to WiFi");
@@ -71,15 +53,23 @@ void setup() {
 
   delay(1000);
 
+  // Make sure the RF module is set to the correct settings
+  if (!inverter.setDefaultRFSettings())
+  {
+      debugSerial.println("Could not set RF module to default settings");
+      leds[0] = CRGB::Yellow;
+      FastLED.show();
+  }
+
   // Check server connection
-  if (client.validateConnection()) {
+  if (influx.validateConnection()) {
     Serial.print("Connected to InfluxDB: ");
-    Serial.println(client.getServerUrl());
+    Serial.println(influx.getServerUrl());
     leds[0] = CRGB::Blue;
     FastLED.show();
   } else {
     Serial.print("InfluxDB connection failed: ");
-    Serial.println(client.getLastErrorMessage());
+    Serial.println(influx.getLastErrorMessage());
     leds[0] = CRGB::Red;
     FastLED.show();
   }
@@ -88,146 +78,90 @@ void setup() {
 
   lastTx = millis();
   lastRx = millis();
-}
 
-void recvWithStartEndMarkers() {
-    static boolean recvInProgress = false;
-    static byte ndx = 0;
-    int startMarker = 0x43;
-    //int endMarker = 0x9F; // 0x2f
-    int rc;
- 
-    while (Serial1.available() > 0 && !newData) {
-      rc = Serial1.read();
-
-      if (rc == startMarker)
-        recvInProgress = true;
-      if (recvInProgress == true) {
-        rxData[ndx] = rc;
-        ndx++;
-        if (ndx >= numChars) {
-          recvInProgress = false;
-          ndx = 0;
-          newData = true;
-        }
-        //if (rc == endMarker) {
-        //  recvInProgress = false;
-        //  ndx = 0;
-        //  newData = true;
-        //}
-      }
-  }
-}
-
-float getValue(int index) {
-  return int((rxData[index] << 8) | rxData[index + 1]) / 100.0;
+  sensor.clearTags();
+  sensor.addTag("INVERTER_ID", String(inverterID));
+  sensor.addTag("source", "solar-logger");
 }
 
 void writeToDB() {
     // Print what are we exactly writing
   Serial.print("Writing: ");
-  Serial.println(client.pointToLineProtocol(sensor));
+  Serial.println(influx.pointToLineProtocol(sensor));
   // If no Wifi signal, try to reconnect it
   if (wifiMulti.run() != WL_CONNECTED) {
     Serial.println("Wifi connection lost");
   }
   // Write point
-  if (!client.writePoint(sensor)) {
+  if (!influx.writePoint(sensor)) {
     Serial.print("InfluxDB write failed: ");
-    Serial.println(client.getLastErrorMessage());
+    Serial.println(influx.getLastErrorMessage());
   }
 }
 
-void showNewData() {
-  if (!newData) return;
-  
-  Serial.print("Got response: ");
-  leds[0] = CRGB::Green;
-  FastLED.show();
-  for (int i = 0; i < sizeof(rxData); i++)
-  {
-    Serial.print(rxData[i], HEX);
-    Serial.print(" ");
-  }
-
-  String box_id = String(int((rxData[I_BOX_ID] << 8) | rxData[I_BOX_ID + 1]), HEX);
-  String inverter_id = String(int((rxData[I_INVERTER_ID] << 24) | (rxData[I_INVERTER_ID + 1] << 16) | (rxData[I_INVERTER_ID + 2] << 8) | rxData[I_INVERTER_ID + 3]), HEX);
-
-  if (box_id != BOX_ID_S || inverter_id != INVERTER_ID_S) {
-    Serial.println(" - Wrong box or inverter ID");
-    newData = false;
-    return;
-  }
-
-  float vdc = getValue(I_VDC);
-  float idc = getValue(I_DC);
-  float vac = getValue(I_VAC);
-  float iac = getValue(I_AC);
-  
-  Serial.println();
-  Serial.print("Box ID: ");
-  Serial.print(box_id);
-  Serial.print(" Inverter ID: ");
-  Serial.print(inverter_id);
-  Serial.print(" Voltage DC: ");
-  Serial.print(vdc);
-  Serial.print(" Current DC: ");
-  Serial.print(idc);
-  Serial.print(" Voltage AC: ");
-  Serial.print(vac);
-  Serial.print(" Current AC: ");
-  Serial.print(iac);
-  Serial.println();
-  lastRx = millis();
-
-  // Store measured value into point
-  sensor.clearFields();
-  sensor.clearTags();
-  
-  // Add constant tags - only once
-  sensor.addTag("BOX_ID", box_id);
-  sensor.addTag("INVERTER_ID", inverter_id);
-
-  sensor.addField("VDC", vdc);
-  sensor.addField("IDC", idc);
-  sensor.addField("VAC", vac);
-  sensor.addField("IAC", iac);
-
-  // Write point to InfluxDB
-  writeToDB();
-
-  attemps = 0;
-  newData = false;
-}
-
+uint32_t lastSendMillis = 0;
 void loop() {
-  if (lastTx + 5000 < millis() && lastRx + 60000 < millis()) {
-    data_grab();
+  const uint32_t currentMillis = millis();
+  if (currentMillis - lastSendMillis > 60000) {
+    lastSendMillis = currentMillis;
     attemps++;
-    lastTx = millis();
-    if (attemps > 3) {
+    debugSerial.println("");
+    debugSerial.println("Sending request now");
+
+    const NETSGPClient::InverterStatus status = inverter.getStatus(inverterID);
+    if (status.valid) {
+      leds[0] = CRGB::Green;
+      FastLED.show();
+      debugSerial.println("*********************************************");
+      debugSerial.println("Received Inverter Status");
+      debugSerial.print("Device: ");
+      debugSerial.println(status.deviceID, HEX);
+      debugSerial.println("Status: " + String(status.state));
+      debugSerial.println("DC_Voltage: " + String(status.dcVoltage) + "V");
+      debugSerial.println("DC_Current: " + String(status.dcCurrent) + "A");
+      debugSerial.println("DC_Power: " + String(status.dcPower) + "W");
+      debugSerial.println("AC_Voltage: " + String(status.acVoltage) + "V");
+      debugSerial.println("AC_Current: " + String(status.acCurrent) + "A");
+      debugSerial.println("AC_Power: " + String(status.acPower) + "W");
+      debugSerial.println("Power gen total: " + String(status.totalGeneratedPower));
+      debugSerial.println("Temperature: " + String(status.temperature));
+      
+      // Store measured value into point
+      sensor.clearFields();
+      sensor.addField("STATUS", status.state);
+      sensor.addField("VDC", status.dcVoltage);
+      sensor.addField("IDC", status.dcCurrent);
+      sensor.addField("PDC", status.dcPower);
+      sensor.addField("VAC", status.acVoltage);
+      sensor.addField("IAC", status.acCurrent);
+      sensor.addField("PAC", status.acPower);
+      sensor.addField("TOTAL_GEN", status.totalGeneratedPower);
+      sensor.addField("TEMP", status.temperature);
+
+      // Write point to InfluxDB
+      writeToDB();
+      attemps = 0;
+
+    } else if (attemps > 3) {
       Serial.println("No response from inverter");
       leds[0] = CRGB::Yellow;
       FastLED.show();
 
       // Store measured value into point
       sensor.clearFields();
-      sensor.clearTags();
-      
-      sensor.addTag("BOX_ID", BOX_ID_S);
-      sensor.addTag("INVERTER_ID", INVERTER_ID_S);
-
+      sensor.addField("STATUS", 0);
       sensor.addField("VDC", 0.0);
       sensor.addField("IDC", 0.0);
+      sensor.addField("PDC", 0.0);
       sensor.addField("VAC", 0.0);
       sensor.addField("IAC", 0.0);
+      sensor.addField("PAC", 0.0);
+      sensor.addField("TOTAL_GEN", 0);
+      sensor.addField("TEMP", 0);
 
       // Write point to InfluxDB
       writeToDB();
       attemps = 0;
-      lastRx = millis();
     }
   }
-  recvWithStartEndMarkers();
-  showNewData();
 }
