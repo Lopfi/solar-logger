@@ -156,7 +156,7 @@ void loop() {
       sensor.addField("VAC", 0.0);
       sensor.addField("IAC", 0.0);
       sensor.addField("PAC", 0.0);
-      sensor.addField("TOTAL_GEN", 0);
+      sensor.addField("TOTAL_GEN", 0.0);
       sensor.addField("TEMP", 0);
 
       // Write point to InfluxDB
